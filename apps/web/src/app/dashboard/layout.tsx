@@ -13,7 +13,8 @@ import {
   Settings, 
   LogOut,
   Bell,
-  Bot
+  Bot,
+  Activity
 } from "lucide-react";
 import clsx from "clsx";
 
