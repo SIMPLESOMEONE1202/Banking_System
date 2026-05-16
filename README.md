@@ -112,4 +112,15 @@ npm run dev
 
 ---
 
+
+##**Sample Images**
+<img width="1918" height="916" alt="image" src="https://github.com/user-attachments/assets/cda0291b-1259-4949-be33-da50a22f12cc" />
+<img width="1907" height="911" alt="image" src="https://github.com/user-attachments/assets/e0658ad3-3f83-4718-ae5b-860394d6d18d" />
+<img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/c2618678-2345-4241-b34e-cc5668cb8687" />
+<img width="1918" height="1021" alt="image" src="https://github.com/user-attachments/assets/2d1038a1-1f64-4f68-9251-2d336e53af4f" />
+
+
+
+
+
 *Designed and developed as a conceptual AI enterprise banking ecosystem.*
