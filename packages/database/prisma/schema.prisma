@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String?
+  lastName      String?
+  role          Role      @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  kycDocuments  KycDocument[]
+}
+
+model Account {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  accountNumber String    @unique
+  balance       Float     @default(0)
+  currency      String    @default("USD")
+  type          AccountType @default(SAVINGS)
+  sourceTransactions Transaction[] @relation("SourceAccount")
+  targetTransactions Transaction[] @relation("TargetAccount")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  COMPLIANCE_OFFICER
+  FRAUD_ANALYST
+}
+
+enum AccountType {
+  SAVINGS
+  CHECKING
+  BUSINESS
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  FLAGGED
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  amount          Float
+  currency        String            @default("USD")
+  status          TransactionStatus @default(PENDING)
+  description     String?
+  sourceAccountId String
+  sourceAccount   Account           @relation("SourceAccount", fields: [sourceAccountId], references: [id])
+  targetAccountId String?
+  targetAccount   Account?          @relation("TargetAccount", fields: [targetAccountId], references: [id])
+  aiRiskScore     Float             @default(0) // 0-100 score from fraud engine
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  amlAlerts       AmlAlert[]
+  fraudReports    FraudReport[]
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+model AmlAlert {
+  id              String        @id @default(cuid())
+  transactionId   String
+  transaction     Transaction   @relation(fields: [transactionId], references: [id])
+  severity        AlertSeverity @default(MEDIUM)
+  status          AlertStatus   @default(OPEN)
+  reason          String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model FraudReport {
+  id              String        @id @default(cuid())
+  transactionId   String
+  transaction     Transaction   @relation(fields: [transactionId], references: [id])
+  score           Float
+  factors         String        // JSON string of risk factors
+  status          AlertStatus   @default(OPEN)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model KycDocument {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  documentType    String
+  documentUrl     String
+  status          KycStatus     @default(PENDING)
+  livenessScore   Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
