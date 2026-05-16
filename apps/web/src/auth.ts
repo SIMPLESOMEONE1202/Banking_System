@@ -42,7 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (token && session.user) {
-        (session.user as any).id = token.sub
+        (session.user as any).id = token.sub || ""
         (session.user as any).role = token.role
         ;(session as any).accessToken = token.accessToken
       }
