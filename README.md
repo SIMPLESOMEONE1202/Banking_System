@@ -16,6 +16,203 @@ Built with a scalable **Turborepo monorepo** architecture, a high-performance **
 * **AI Copilot (ChatGPT Interface)**: A built-in intelligent assistant that compliance officers can query. Integrates with the `openai` SDK to generate regulatory SAR (Suspicious Activity Reports) in one click based on current database flags.
 
 ---
+# System Architecture & Diagrams
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TB
+    subgraph Client["👤 Client Layer"]
+        Browser["Browser<br/>(Customer / Admin / Compliance / Fraud Analyst)"]
+    end
+
+    subgraph Frontend["apps/web — Next.js 15 (Port 3000)"]
+        UI["App Router UI<br/>Tailwind + Framer Motion"]
+        NextAuthFE["NextAuth<br/>Session Handling"]
+        Zustand["Zustand<br/>Client State"]
+        Copilot["AI Copilot UI<br/>(ChatGPT-style Interface)"]
+    end
+
+    subgraph External["🤖 External AI Service"]
+        OpenAI["OpenAI SDK<br/>SAR Report Generation"]
+    end
+
+    subgraph Backend["apps/api — Express.js (Port 4000)"]
+        Auth["Auth Middleware<br/>JWT + bcrypt"]
+        RBAC["RBAC Guard<br/>(CUSTOMER / ADMIN /<br/>COMPLIANCE_OFFICER / FRAUD_ANALYST)"]
+        Validation["Zod Schema<br/>Validation"]
+        FraudEngine["Fraud Detection Engine<br/>(Risk Scoring Simulation)"]
+        Routes["REST Routes<br/>/accounts /transactions /flags"]
+    end
+
+    subgraph Data["packages/database"]
+        Prisma["Prisma ORM"]
+        Postgres[("PostgreSQL<br/>Users · Accounts · Transactions · Flags")]
+    end
+
+    Browser --> UI
+    UI --> NextAuthFE
+    UI --> Zustand
+    UI --> Copilot
+
+    Copilot -- "Direct API call<br/>(flagged transaction context)" --> OpenAI
+    UI -- "HTTPS / REST" --> Routes
+
+    Routes --> Auth
+    Auth --> RBAC
+    RBAC --> Validation
+    Validation --> FraudEngine
+    Validation --> Prisma
+    FraudEngine --> Prisma
+    Prisma --> Postgres
+
+    Copilot -. "fetch flagged data<br/>to build prompt" .-> Routes
+
+    style Browser fill:#1a1a1a,color:#fff,stroke:#fff
+    style OpenAI fill:#10a37f,color:#fff,stroke:#fff
+    style Postgres fill:#336791,color:#fff,stroke:#fff
+    style FraudEngine fill:#b91c1c,color:#fff,stroke:#fff
+    style RBAC fill:#1a1a1a,color:#fff,stroke:#fff
+```
+
+
+---
+
+## 🔐 RBAC & Authentication Flow
+
+```mermaid
+flowchart TD
+    Start(["User Visits App"]) --> Login["Login Form<br/>(NextAuth Credentials)"]
+    Login --> Verify{"Verify Credentials<br/>JWT + bcrypt"}
+
+    Verify -- "❌ Invalid" --> Reject["Reject<br/>Show Error"]
+    Verify -- "✅ Valid" --> IssueToken["Issue JWT<br/>(role embedded in payload)"]
+
+    IssueToken --> CheckRole{"Decode Role"}
+
+    CheckRole -- "CUSTOMER" --> CustomerView["Customer Dashboard<br/>• View Balances<br/>• Transfer Funds<br/>• Open Accounts"]
+    CheckRole -- "ADMIN" --> AdminView["Admin Dashboard<br/>• User Management<br/>• System Settings"]
+    CheckRole -- "COMPLIANCE_OFFICER" --> ComplianceView["Compliance Dashboard<br/>• AML Monitoring Queue<br/>• AI Copilot (SAR Gen)<br/>• Investigate Flags"]
+    CheckRole -- "FRAUD_ANALYST" --> FraudView["Fraud Analytics Dashboard<br/>• Live Detection Feed<br/>• Risk Index Heatmap<br/>• Geo-Velocity Breakdown"]
+
+    CustomerView --> Middleware["Every Subsequent Request<br/>→ RBAC Guard Middleware"]
+    AdminView --> Middleware
+    ComplianceView --> Middleware
+    FraudView --> Middleware
+
+    Middleware --> Allowed{"Role Permitted<br/>for Route?"}
+    Allowed -- "Yes" --> Resource["Serve Protected Resource"]
+    Allowed -- "No" --> Forbidden["403 Forbidden"]
+
+    style Verify fill:#1a1a1a,color:#fff,stroke:#fff
+    style ComplianceView fill:#b91c1c,color:#fff,stroke:#fff
+    style FraudView fill:#b91c1c,color:#fff,stroke:#fff
+    style Forbidden fill:#7f1d1d,color:#fff,stroke:#fff
+```
+
+---
+
+## ⚡ Real-time Fraud Detection Sequence
+
+```mermaid
+sequenceDiagram
+    actor Customer
+    participant Web as Next.js (apps/web)
+    participant API as Express API
+    participant Engine as Fraud Engine
+    participant DB as PostgreSQL
+    participant Analyst as Fraud Analyst Dashboard
+    participant Officer as Compliance Officer
+    participant AI as OpenAI SDK
+
+    Customer->>Web: Initiate Transfer
+    Web->>API: POST /transactions (JWT)
+    API->>API: Validate (Zod) + RBAC Guard
+    API->>Engine: Score Transaction<br/>(amount, geo-velocity, volume)
+
+    alt Risk Score Low
+        Engine->>DB: Save Transaction (status: CLEARED)
+        DB-->>Web: 200 OK — Transfer Complete
+    else Risk Score High
+        Engine->>DB: Save Transaction (status: FLAGGED)
+        Engine->>DB: Create Risk Flag Record
+        DB-->>Analyst: Live Feed Update<br/>(Risk Heatmap + Breakdown)
+        DB-->>Officer: New Item in AML Monitoring Queue
+        Web-->>Customer: Transfer Pending Review
+    end
+
+    Officer->>Officer: Opens AI Copilot
+    Officer->>Web: Request SAR Draft for Flag #X
+    Web->>API: GET /flags/:id (fetch context)
+    API->>DB: Query Flag + Transaction Details
+    DB-->>API: Flagged Data
+    API-->>Web: Return Context JSON
+    Web->>AI: Direct call with flagged context<br/>(no backend in this hop)
+    AI-->>Web: Generated SAR Report
+    Web-->>Officer: Render SAR for Review/Submission
+```
+
+---
+
+## 🗄️ Database Entity-Relationship Diagram
+
+```mermaid
+erDiagram
+    USER {
+        string id PK
+        string email
+        string passwordHash
+        string name
+        enum role "CUSTOMER | ADMIN | COMPLIANCE_OFFICER | FRAUD_ANALYST"
+        datetime createdAt
+    }
+
+    ACCOUNT {
+        string id PK
+        string userId FK
+        string accountNumber
+        decimal balance
+        enum accountType
+        datetime createdAt
+    }
+
+    TRANSACTION {
+        string id PK
+        string senderAccountId FK
+        string receiverAccountId FK
+        decimal amount
+        enum status "PENDING | CLEARED | FLAGGED | REJECTED"
+        float riskScore
+        datetime createdAt
+    }
+
+    FLAG {
+        string id PK
+        string transactionId FK
+        string reviewedById FK
+        enum riskFactor "GEO_VELOCITY | UNUSUAL_VOLUME | HIGH_AMOUNT | OTHER"
+        enum flagStatus "OPEN | UNDER_REVIEW | RESOLVED | ESCALATED"
+        text notes
+        datetime createdAt
+    }
+
+    SAR_REPORT {
+        string id PK
+        string flagId FK
+        string generatedById FK
+        text content
+        enum submissionStatus "DRAFT | SUBMITTED"
+        datetime createdAt
+    }
+
+    USER ||--o{ ACCOUNT : "owns"
+    ACCOUNT ||--o{ TRANSACTION : "sends (sender)"
+    ACCOUNT ||--o{ TRANSACTION : "receives (receiver)"
+    TRANSACTION ||--o| FLAG : "may trigger"
+    USER ||--o{ FLAG : "reviewed by (Compliance/Fraud)"
+    FLAG ||--o| SAR_REPORT : "generates"
+    USER ||--o{ SAR_REPORT : "generated by (Compliance Officer)"
+```
 
 ## 🛠️ Tech Stack
 
